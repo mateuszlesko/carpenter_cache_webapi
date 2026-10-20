@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package productorder;
+
+service UserProductOrder{
+    // confirm User order
+    rpc ConfrimUserProductOrder(UserProductOrderRequest) returns (OrderConfirmationReplyStatus);
+}
+
+message OrderConfirmationReplyStatus
+{
+    int32 status = 1;
+}
+
+message ProductOrder{
+    string product_id = 1;
+    int32 unit = 2;
+}
+
+
+message UserProductOrderRequest{
+    string order_id = 1;
+    string client_id = 2;
+    repeated ProductOrder products = 3;
+}

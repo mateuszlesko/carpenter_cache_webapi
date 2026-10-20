@@ -1,0 +1,34 @@
+include:
+  - ../carpenter_infra/network_definitions/compose.yml
+services:
+  web:
+    build: .
+    args:
+      - RELEASE_TYPE=${CACHE_WEB_API_RELEASE_TYPE}
+    ports:
+      - "${APP_PORT}:${APP_EXPOSED_PORT}"
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - CARPENTER_STORE_API=${CARPENTER_STORE_API}
+    depends_on:
+      - redis
+    networks:
+      - services_net
+      - frontend
+      - isolated
+
+  redis:
+    image: redis:8.10-alpine
+    networks:
+      - isolated
+
+networks:
+  isolated:
+    internal: true
+  
+  services_net:
+    external: true 
+
+  frontend:
+    external: true 

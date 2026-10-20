@@ -1,0 +1,71 @@
+import logging
+import os
+from typing import List
+
+from .grpc.order_grpc_service import OrderGrpcService
+from .observer import Subject, SubjectKey, Observer
+
+_LOGGER = logging.getLogger(__name__)
+
+"""
+logic for informing internal software components about 
+an order confirmation event occuring
+"""
+
+class OrderConfirmationObserver(Observer):
+    
+    def __init__(self):
+        self.order = None
+        self.grpc_service = OrderGrpcService(os.getenv["CARPENTER_STORE_API"], os.getenv["GRPC_PORT"])
+
+    @staticmethod
+    def create_observer(order: dict) -> "OrderConfirmationObserver":
+        observer = OrderConfirmationObserver()
+        observer.order = order
+        observer.grpc_service = OrderGrpcService(os.getenv["CARPENTER_STORE_API"], os.getenv["GRPC_PORT"])
+        return observer
+
+
+    def update(self) -> None:
+        self.grpc_service.confirm_order(self.order)
+        _LOGGER.info("Order confirmation sent to gRPC service for order_id: %s", self.order['order_id'])
+
+
+class OrderConfirmationKeySubject(Subject):
+
+    _observers: dict[str, list[OrderConfirmationObserver]] = {}
+
+    @staticmethod
+    def count_observers(key):
+        return len(__class__._observers[key])
+
+
+    def __init__(self):
+        self._observer = None
+
+
+    def attach(self, key: str, observer: OrderConfirmationObserver) -> None:
+        if key not in self._observers.keys():
+            self._observers[key] = []
+        self._observers[key].append(observer)
+
+
+    def detach(self, key: str)-> None:
+        __class__._observers.pop(key)
+        pass
+
+
+    def notify(self, key) -> None:
+        observers = self._observers.get(key)
+        if observers:
+            for observer in observers:
+                observer.update()
+
+
+    def confirm_order(self, order_id: str) -> None:
+        self.notify(order_id)
+
+
+    def get_subjects(self) -> list[str]:
+        return list(self._observers.keys())
+
