@@ -1,6 +1,7 @@
+""" build-in imports """
 import logging
 import os
-from typing import List
+
 
 from .grpc.order_grpc_service import OrderGrpcService
 from .observer import Subject, SubjectKey, Observer
@@ -16,13 +17,14 @@ class OrderConfirmationObserver(Observer):
     
     def __init__(self):
         self.order = None
-        self.grpc_service = OrderGrpcService(os.getenv["CARPENTER_STORE_API"], os.getenv["GRPC_PORT"])
+        self.grpc_service = OrderGrpcService(os.getenv("CARPENTER_STORE_API"), os.getenv("GRPC_SUB_PORT"))
+
 
     @staticmethod
     def create_observer(order: dict) -> "OrderConfirmationObserver":
         observer = OrderConfirmationObserver()
         observer.order = order
-        observer.grpc_service = OrderGrpcService(os.getenv["CARPENTER_STORE_API"], os.getenv["GRPC_PORT"])
+        observer.grpc_service = OrderGrpcService(os.getenv("CARPENTER_STORE_API"), os.getenv("GRPC_SUB_PORT"))
         return observer
 
 
@@ -33,30 +35,26 @@ class OrderConfirmationObserver(Observer):
 
 class OrderConfirmationKeySubject(Subject):
 
-    _observers: dict[str, list[OrderConfirmationObserver]] = {}
+    __observers: dict[str, list[OrderConfirmationObserver]] = {}
 
     @staticmethod
     def count_observers(key):
         return len(__class__._observers[key])
 
 
-    def __init__(self):
-        self._observer = None
-
-
     def attach(self, key: str, observer: OrderConfirmationObserver) -> None:
-        if key not in self._observers.keys():
-            self._observers[key] = []
-        self._observers[key].append(observer)
+        if key not in self.__observers.keys():
+            self.__observers[key] = []
+        self.__observers[key].append(observer)
 
 
     def detach(self, key: str)-> None:
-        __class__._observers.pop(key)
-        pass
+        if key in __class__.__observers.keys():
+            __class__.__observers.pop(key, None)
 
 
     def notify(self, key) -> None:
-        observers = self._observers.get(key)
+        observers = self.__observers.get(key)
         if observers:
             for observer in observers:
                 observer.update()
@@ -67,5 +65,5 @@ class OrderConfirmationKeySubject(Subject):
 
 
     def get_subjects(self) -> list[str]:
-        return list(self._observers.keys())
+        return list(self.__observers.keys())
 

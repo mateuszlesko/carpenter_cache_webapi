@@ -14,7 +14,7 @@ class OrderGrpcService:
     """
 
 
-    def __init__(host_server, port):
+    def __init__(self, host_server, port):
         self.channel = grpc.insecure_channel(
                 "{}:{}".format(host_server, port)
             )

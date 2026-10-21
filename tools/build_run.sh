@@ -6,8 +6,10 @@ APP_NAME="carpenter_cache_webapi"
 if [[ "$input_params" == *"--help"* ]]; then
     echo "Usage: ./build_run.sh [--help] [--no-cache]"
     echo "Options:"
-    echo "  --help      Show this help message"
-    echo "  --run Build the Docker images and run the containers"
+    echo "  --help : Show this help message"
+    echo "  --run : Build the Docker images and run the containers"
+    echo "  prod : Build the production Docker images"
+    echo "  dev : Build the devlopment Docker images"
     echo "  --export Export the Docker image as archive"
 
 fi
@@ -25,14 +27,15 @@ if [[ "$input_params" == *"--run"* ]]; then
 
     if [[ "$input_params" == *"prod"* ]]; then
         export CACHE_WEB_API_RELEASE_TYPE="prod"
-    else
+    fi
+    if [[ "$input_params" == *"dev"* ]]; then
         export CACHE_WEB_API_RELEASE_TYPE="dev"
     fi
 
     if [[ "$input_params" == *"--no-cache"* ]]; then
-        docker compose --env-file .env up --build --build-arg RELEASE_TYPE=$CACHE_WEB_API_RELEASE_TYPE --no-cache
+        docker compose --env-file .env up --build --no-cache
     else
-        docker compose --env-file .env up --build --build-arg RELEASE_TYPE=$CACHE_WEB_API_RELEASE_TYPE
+        docker compose --env-file .env up --build
     fi
     
 fi
