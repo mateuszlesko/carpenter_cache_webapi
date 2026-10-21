@@ -18,37 +18,39 @@ load_dotenv()
 order_data_service = OrderDataService(os.getenv('REDIS_HOST'), os.getenv('REDIS_PORT'), os.getenv('ORDERS_DB'))
 # follow the order confirmation process using the observer pattern
 order_confirmation_subject = OrderConfirmationKeySubject()
-orders_to_confirm = [
-    {
-        "client_id": 1,
-        "products" : [
-            {
-                "product_id" : 1,
-                "amount" : 1
-            },
-            {
-                "product_id" : 2,
-                "amount" : 4
-            }
-        ]
-    },
-    {
-        "client_id": 2,
-        "products" : [
-            {
-                "product_id" : 2,
-                "amount" : 1
-            }
-        ]
-    },
-]
 
-for order in orders_to_confirm:
-    status = order_data_service.create_order(order)
-    if status["status"] == "SUCCESS":
-        order_confirmation_observer = OrderConfirmationObserver.create_observer(status['order'])
-        order_confirmation_subject.attach(status['order']['order_id'], order_confirmation_observer)
-        print(f"SUCCESS: [] Order {order['order_id']}] created successfully")
+if "dev" == os.getenv("CACHE_WEB_API_RELEASE_TYPE"):
+    orders_to_confirm = [
+        {
+            "client_id": 1,
+            "products" : [
+                {
+                    "product_id" : 1,
+                    "amount" : 1
+                },
+                {
+                    "product_id" : 2,
+                    "amount" : 4
+                }
+            ]
+        },
+        {
+            "client_id": 2,
+            "products" : [
+                {
+                    "product_id" : 2,
+                    "amount" : 1
+                }
+            ]
+        },
+    ]
+
+    for order in orders_to_confirm:
+        status = order_data_service.create_order(order)
+        if status["status"] == "SUCCESS":
+            order_confirmation_observer = OrderConfirmationObserver.create_observer(status['order'])
+            order_confirmation_subject.attach(status['order']['order_id'], order_confirmation_observer)
+            print(f"SUCCESS: [] Order {order['order_id']}] created successfully")
 
 
 @app.route('/orders/toconfirm')
@@ -60,17 +62,9 @@ def get_orders_to_confirm():
 
 @app.route('/orders/create', methods=['POST'])
 def create_order():
+    
     order = request.get_json()
-
-    create_try_counter = 0
     status = order_data_service.create_order(order)
-
-    while create_try_counter < 3 and status["status"] == "ERROR":
-        status = order_data_service.create_order(order)
-        create_try_counter += 1
-        if status["status"] == "SUCCESS":
-            break
-     
     if status["status"] == "SUCCESS":
         order_id = status["order"]["order_id"]
         order_confirmation_observer = OrderConfirmationObserver.create_observer(status["order"])
@@ -79,9 +73,10 @@ def create_order():
     return jsonify(status)
 
 
-@app.route('/subjects', methods=['GET'])
-def get_subjects():
-    return jsonify({'subjects': order_confirmation_subject.get_subjects()})
+if "dev" == os.getenv("CACHE_WEB_API_RELEASE_TYPE"):
+    @app.route('/subjects', methods=['GET'])
+    def get_subjects():
+        return jsonify({'subjects': order_confirmation_subject.get_subjects()})
 
 
 @app.route('/orders/status/<string:order_id>', methods=['GET'])
