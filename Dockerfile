@@ -8,13 +8,13 @@ ARG RELEASE_TYPE=dev
 
 WORKDIR /code
 
-#RUN apk add --no-cache gcc musl-dev linux-headers
+RUN apk add --no-cache gcc musl-dev linux-headers
 
 COPY . .
 
-# RUN python -m venv venv
+ RUN python -m venv venv
 
-# RUN source venv/bin/activate
+ RUN source venv/bin/activate
 
 RUN if [ "$RELEASE_TYPE" = "dev" ]; then \
         pip install -r requirements.txt;
