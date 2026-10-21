@@ -1,4 +1,10 @@
 # Carpenter cache webapi
+
+## About
+
+`Carpenter cache webapi` is a mircoservice which acts primary as a cache for orders that needs to be confirmed by the clients. WebAPI works also as a gate to internal backend services which are procceding further workshop orders.
+
+
 ## Software Architecture
 
 ```mermaid
@@ -50,6 +56,8 @@ export ORDERS_DB=0
 export GRPC_SUB_PORT=5246
 export CARPENTER_STORE_API=carpenterordersmanagmentsystem-web-1
 ```
+
+### Deploy:
 
 In terminal run the following command:
 ```source tools/build_run.sh --run dev
