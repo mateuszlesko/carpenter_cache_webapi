@@ -1,9 +1,12 @@
+""" build-in imports """
 import json
 import logging
-
 from datetime import datetime
 
+""" 3rd party imports """
 import redis
+
+""" internal imports """
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -13,126 +16,157 @@ class RedisRepository:
     abstraction layer for managaing REDIS cache memory - managing connection with Redis DB,
     inserting, listing, deleting records
     """
-    def __init__(self, _host: str, _port: int, _db: int):
-        self._host = _host
-        self._port = _port
-        self._db = _db
-        self._redis = self._connect()
+    
+    """ managed shared redis sessions context """
+    __connections : dict[str, redis.Redis] = {}
+    do_connections_contain = lambda key : key in __class__.__connections.keys()
 
 
-    def __del__(self):
-        if getattr(self, "_redis", None) is not None:
-            self._redis.close()
+    @staticmethod
+    def create_instance(_conn_name : str, _host : str, _port: int, _db: int):
+        redis_repo = RedisRepository()
+        redis_repo._host = _host
+        redis_repo._port = _port
+        redis_repo._db = _db
+        redis_repo._connection_name = _conn_name
+        if not __class__.do_connections_contain(_conn_name):
+            __class__.__connections[_conn_name] = __class__._connect(_host, _port, _db)
+        
+        return redis_repo
 
 
-    def _connect(self):
-        _redis = redis.Redis(self._host, self._port, self._db)
+    @staticmethod
+    def destruct_instance(conn_name):
+
+        if __class__.do_connections_contain(conn_name):
+            __class__.__connections.pop(conn_name, None)
+            return conn_name
+        else:
+            return None
+
+
+    @staticmethod
+    def _connect(host, port, db):
+
+        operation_time = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
+        connection_error_msg = "ERROR: [{}]: Can not connect to DB".format(operation_time)
+        timeout_error = "ERROR: [{}]: Connection timeout reached out".format(operation_time)
+        db_conn = redis.Redis(host, port, db)
+        
         try:
-            _redis.ping()
+            db_conn.ping()
         except redis.exceptions.ConnectionError:
-            _LOGGER.error("ERROR: [] Can not connect to DB")
+            _LOGGER.error(connection_error_msg)
+            print(connection_error_msg)
             return None
         except redis.exceptions.TimeoutError:
-            _LOGGER.error("ERROR: [] Connection timeout reached out")
+            _LOGGER.error(timeout_error)
+            print(timeout_error)
             return None
-        return _redis
+
+        return db_conn
+
+    
+    def get_context(self):
+        return dict( name = self._conn_name, host = self._host, port = self._port, db = self._db)
 
 
-    def get(self, pattern: str):
-        if self._redis is None:
-            self._redis = self._connect()
-        if self._redis is None:
+    def get_record_by_key(self, conn_name : str, pattern: str):
+
+        if not __class__.do_connections_contain(conn_name):
             return None
-        return self._redis.get(pattern)
+  
+        return __class__.__connections[conn_name].get(pattern)
 
 
-    def get_keys(self, pattern: str):
-        if self._redis is None:
-            self._redis = self._connect()
-        if self._redis is None:
+    def get_keys(self, conn_name,pattern: str):
+
+        if not __class__.do_connections_contain(conn_name):
             return []
 
         keys = []
         cursor = 0
         while True:
-            cursor, batch = self._redis.scan(cursor=cursor, match=pattern, count=100)
+            cursor, batch = __class__.__connections[conn_name].scan(cursor=cursor, match=pattern, count=100)
             keys.extend(batch)
             if cursor == 0:
                 break
         return keys
 
 
-    def set(self, key: str, value: dict):
-        if self._redis is None:
-            self._redis = self._connect()
-        if self._redis is None:
-            print("ERROR: could not reach to redis before set operation")
-            return None
+    def set_record(self, conn_name : str, key : str, value : dict):
 
-        if self._set(key, str(json.dumps(value))):
+        if not __class__.do_connections_contain(conn_name):
+            print("ERROR: could not get redis connection context")
+            return None
+  
+        if self._set_record(conn_name, key, str(json.dumps(value))):
             return value
         return None
 
 
-    def _set(self, key: str, value: dict):
+    def _set_record(self, conn_name : str, key : str, value : dict):
         
         memory_error_msg = "ERROR during set operation [{}]: DB is out of memory"
         timeout_error_msg = "ERROR during set operation [{}]: timeout reached out"
         general_redis_error_msg = "ERROR during set operation: [{}]: Error occured in Redis"
         
-        if self._redis is None:
-            return False
-        operation_date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+        operation_time = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
+
         try:
-            self._redis.set(key, value)
+            __class__.__connections[conn_name].set(key, value)
         except redis.exceptions.OutOfMemoryError:
-            _LOGGER.error(memory_error_msg.format(operation_date))
-            print(memory_error_msg.format(operation_date))
+            _LOGGER.error(memory_error_msg.format(operation_time))
+            print(memory_error_msg.format(operation_time))
             return False
         except redis.exceptions.TimeoutError:
-            print(timeout_error_msg.format(operation_date))
-            _LOGGER.error(timeout_error_msg.format(operation_date))
+            print(timeout_error_msg.format(operation_time))
+            _LOGGER.error(timeout_error_msg.format(operation_time))
             return False
         except redis.exceptions.RedisError:
-            print(general_redis_error_msg.format(operation_date))
-            _LOGGER.error(general_redis_error_msg.format(operation_date))
+            print(general_redis_error_msg.format(operation_time))
+            _LOGGER.error(general_redis_error_msg.format(operation_time))
             return False
         
         return True
 
 
-    def delete(self, pattern: str):
+    def delete_record(self, conn_name : str, pattern: str):
         
-        operation_date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-        if self._redis is None:
-            self._redis = self._connect()
-        if self._redis is None:
-            print(general_redis_error_msg.format(operation_date))
-            _LOGGER.error(general_redis_error_msg.format(operation_date))
-            return 0
+        operation_time = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
+        
+        if not __class__.do_connections_contain(conn_name):
+            print("ERROR [{}]: could not get redis connection context".format(operation_time))
+            return None
 
         total_deleted = 0
         cursor = 0
         while True:
-            cursor, keys = self._redis.scan(cursor=cursor, match=pattern, count=100)
+            cursor, keys = __class__.__connections[conn_name].scan(cursor=cursor, match=pattern, count=100)
             if keys:
-                total_deleted += self._redis.delete(*keys)
+                total_deleted += __class__.__connections[conn_name].delete(*keys)
+                print("SUCCESS [{}]: deletion {}".format(operation_time, str(*keys)))
             if cursor == 0:
                 break
         return total_deleted
 
 
-    def hset(self, key, mapping):
-        if self._redis is None:
-            self._redis = self._connect()
-        if self._redis is None:
+    def hset(self, conn_name, key, mapping):
+
+        operation_time = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
+
+        if not __class__.do_connections_contain(conn_name):
+            print("ERROR [{}]: could not get redis connection context".format(operation_time))
             return None
-        return self._redis.hset(key, mapping=mapping)
+        return __class__.__connections[conn_name].hset(key, mapping=mapping)
 
 
-    def hgetall(self, key):
-        if self._redis is None:
-            self._redis = self._connect()
-        if self._redis is None:
+    def hgetall(self, conn_name, key):
+
+        operation_time = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
+
+        if not __class__.do_connections_contain(conn_name):
+            print("ERROR [{}]: could not get redis connection context".format(operation_time))
             return None
-        return self._redis.hgetall(key)
+        
+        return __class__.__connections[conn_name].hgetall(key)
